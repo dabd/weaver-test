@@ -9,9 +9,7 @@ import cats.effect.{
   Resource,
   Timer
 }
-import cats.syntax.applicative._
 import cats.syntax.applicativeError._
-
 import fs2.Stream
 import org.portablescala.reflect.annotation.EnableReflectiveInstantiation
 
@@ -24,10 +22,13 @@ trait Suite[F[_]] extends BaseSuiteClass {
   def spec(args: List[String]): Stream[F, TestOutcome]
 }
 
-// format: off
-trait EffectSuite[F[_]] extends Suite[F] with Expectations.Helpers { self =>
+/**
+ * An [[EffectSuite]] without [[Expectations.Helpers]]
+ * @tparam F
+ */
+trait BareEffectSuite[F[_]] extends Suite[F] { self =>
 
-  implicit def effect : Effect[F]
+  implicit def effect: Effect[F]
 
   /**
    * Raise an error that leads to the running test being tagged as "cancelled".
@@ -41,38 +42,40 @@ trait EffectSuite[F[_]] extends Suite[F] with Expectations.Helpers { self =>
   def ignore(reason: String)(implicit pos: SourceLocation): F[Nothing] =
     effect.raiseError(new IgnoredException(Some(reason), pos))
 
-  /**
-   * Expect macro
-   */
-  def expect = new Expect
-  def assert = new Expect
+  override def name: String = self.getClass.getName.replace("$", "")
 
-  override def name : String = self.getClass.getName.replace("$", "")
+  protected def adaptRunError: PartialFunction[Throwable, Throwable] =
+    PartialFunction.empty
 
-  protected def adaptRunError: PartialFunction[Throwable, Throwable] = PartialFunction.empty
+  def run(args: List[String])(report: TestOutcome => IO[Unit]): IO[Unit] =
+    spec(args)
+      .evalMap(testOutcome => effect.liftIO(report(testOutcome)))
+      .compile
+      .drain
+      .toIO
+      .adaptErr(adaptRunError)
 
-  def run(args : List[String])(report : TestOutcome => IO[Unit]) : IO[Unit] =
-    spec(args).evalMap(testOutcome => effect.liftIO(report(testOutcome))).compile.drain.toIO.adaptErr(adaptRunError)
-
-  implicit def singleExpectationConversion(e: SingleExpectation)(implicit loc: SourceLocation): F[Expectations] =
-    Expectations.fromSingle(e).pure[F]
-
-  implicit def expectationsConversion(e: Expectations): F[Expectations] =
-    e.pure[F]
 }
 
-trait ConcurrentEffectSuite[F[_]] extends EffectSuite[F] {
+// format: off
+trait EffectSuite[F[_]] extends BareEffectSuite[F] with Expectations.Helpers[F]
+
+trait BareConcurrentEffectSuite[F[_]] extends BareEffectSuite[F] {
   implicit def effect : ConcurrentEffect[F]
 }
 
-trait BaseIOSuite { self : ConcurrentEffectSuite[IO] =>
+trait ConcurrentEffectSuite[F[_]] extends BareConcurrentEffectSuite[F] with Expectations.Helpers[F]
+
+trait BareBaseIOSuite { self : BareConcurrentEffectSuite[IO] =>
   val ec = scala.concurrent.ExecutionContext.global
   implicit def timer : Timer[IO] = IO.timer(ec)
   implicit def cs : ContextShift[IO] = IO.contextShift(ec)
   implicit def effect : ConcurrentEffect[IO] = IO.ioConcurrentEffect
 }
 
-trait PureIOSuite extends ConcurrentEffectSuite[IO] with BaseIOSuite {
+trait BaseIOSuite extends { self: BareBaseIOSuite with Expectations.Helpers[IO] => }
+
+trait BarePureIOSuite extends BareConcurrentEffectSuite[IO] with BareBaseIOSuite {
 
   def pureTest(name: String)(run : => Expectations) : IO[TestOutcome] = Test[IO](name, IO(run))
   def simpleTest(name:  String)(run : IO[Expectations]) : IO[TestOutcome] = Test[IO](name, run)
@@ -80,7 +83,9 @@ trait PureIOSuite extends ConcurrentEffectSuite[IO] with BaseIOSuite {
 
 }
 
-trait MutableFSuite[F[_]] extends ConcurrentEffectSuite[F]  {
+trait PureIOSuite extends BarePureIOSuite with Expectations.Helpers[IO]
+
+trait BareMutableFSuite[F[_]] extends BareConcurrentEffectSuite[F]  {
 
   type Res
   def sharedResource : Resource[F, Res]
@@ -117,7 +122,7 @@ trait MutableFSuite[F[_]] extends ConcurrentEffectSuite[F]  {
         tests = filteredTests.map(_.apply(resource))
         testStream = Stream.emits(tests).lift[F]
         result <- if (parallism > 1 ) testStream.parEvalMap(parallism)(identity)
-                  else testStream.evalMap(identity)
+        else testStream.evalMap(identity)
       } yield result
     }
 
@@ -131,9 +136,15 @@ trait MutableFSuite[F[_]] extends ConcurrentEffectSuite[F]  {
 
 }
 
-trait MutableIOSuite extends MutableFSuite[IO] with BaseIOSuite
+trait MutableFSuite[F[_]] extends BareMutableFSuite[F] with Expectations.Helpers[F]
 
-trait SimpleMutableIOSuite extends MutableIOSuite{
+trait BareMutableIOSuite extends BareMutableFSuite[IO] with BareBaseIOSuite
+
+trait MutableIOSuite extends BareMutableIOSuite with Expectations.Helpers[IO]
+
+trait BareSimpleMutableIOSuite extends BareMutableIOSuite {
   type Res = Unit
   def sharedResource: Resource[IO, Unit] = Resource.pure(())
 }
+
+trait SimpleMutableIOSuite extends BareSimpleMutableIOSuite with Expectations.Helpers[IO]

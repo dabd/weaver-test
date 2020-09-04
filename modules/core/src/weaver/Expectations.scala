@@ -3,6 +3,7 @@ package weaver
 import cats._
 import cats.data.Validated._
 import cats.data.{ NonEmptyList, Validated, ValidatedNel }
+import cats.effect.{ ConcurrentEffect, ContextShift, IO, Timer }
 import cats.implicits._
 
 case class Expectations(val run: ValidatedNel[AssertionException, Unit]) {
@@ -81,7 +82,23 @@ object Expectations {
           ))
     }
 
-  trait Helpers {
+  trait Helpers[F[_]] {
+
+    implicit def effect: ConcurrentEffect[F]
+
+    implicit def singleExpectationConversion(e: SingleExpectation)(
+        implicit loc: SourceLocation): F[Expectations] =
+      Expectations.fromSingle(e).pure[F]
+
+    implicit def expectationsConversion(e: Expectations): F[Expectations] =
+      e.pure[F]
+
+    /**
+     * Expect macro
+     */
+    def expect = new Expect
+
+    def assert = new Expect
 
     val success: Expectations = Monoid[Expectations].empty
 
@@ -120,8 +137,7 @@ object Expectations {
       if (condition) success
       else failure(hint)
 
-    def verify(condition: Boolean)(
-        implicit pos: SourceLocation): Expectations =
+    def verify(condition: Boolean)(implicit pos: SourceLocation): Expectations =
       verify(condition, "assertion failed!")
 
     def not(assertion: Expectations)(
@@ -132,7 +148,12 @@ object Expectations {
 
   }
 
-  object Helpers extends Helpers
+  object Helpers extends Helpers[IO] {
+    val ec                                             = scala.concurrent.ExecutionContext.global
+    implicit def timer: Timer[IO]                      = IO.timer(ec)
+    implicit def cs: ContextShift[IO]                  = IO.contextShift(ec)
+    override implicit def effect: ConcurrentEffect[IO] = IO.ioConcurrentEffect
+  }
 
   def format(tpl: String, values: String*): String = {
     @scala.annotation.tailrec

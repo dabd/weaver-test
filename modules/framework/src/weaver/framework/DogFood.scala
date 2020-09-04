@@ -54,7 +54,7 @@ trait DogFood {
     runSuites(Fingerprinted.ModuleSuite(suiteName))
 
   // Method used to run a test-suite
-  def runSuite[F[_]](suite: EffectSuite[F]): IO[State] =
+  def runSuite[F[_]](suite: BareEffectSuite[F]): IO[State] =
     runSuite(suite.getClass.getName.dropRight(1))
 
   def isSuccess(event: sbt.testing.Event)(
@@ -98,7 +98,7 @@ sealed trait Fingerprinted {
 object Fingerprinted {
   def globalInit(g: GlobalResourcesInit): Fingerprinted =
     GlobalInit(g.getClass.getName.dropRight(1))
-  def moduleSuite[F[_]](g: EffectSuite[F]): Fingerprinted =
+  def moduleSuite[F[_]](g: BareEffectSuite[F]): Fingerprinted =
     ModuleSuite(g.getClass.getName.dropRight(1))
   def sharingSuite[S <: BaseSuiteClass](
       implicit ct: ClassTag[S]): Fingerprinted =

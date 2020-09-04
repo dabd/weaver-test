@@ -15,7 +15,7 @@ import IO.ioMonoid
 final class Task(
     val task: TaskDef,
     args: List[String],
-    loadSuite: IO[EffectSuite[Any]],
+    loadSuite: IO[BareEffectSuite[Any]],
     maybeDeferredLogger: Option[Resource[IO, DeferredLogger]],
     maybeNext: Option[Array[BaseLogger] => IO[Unit]])
     extends WeaverTask {

@@ -3,13 +3,16 @@ package weaver.specs2compat
 import cats.Monoid
 import cats.data.Validated
 import cats.effect.IO
-
-import weaver.{ AssertionException, EffectSuite, Expectations, SourceLocation }
-
 import org.specs2.matcher.{ MatchResult, MustMatchers }
+import weaver.{
+  AssertionException,
+  BareEffectSuite,
+  Expectations,
+  SourceLocation
+}
 
 trait Matchers[F[_]] extends MustMatchers {
-  self: EffectSuite[F] =>
+  self: BareEffectSuite[F] =>
 
   implicit def toExpectations[A](
       m: MatchResult[A]
@@ -19,9 +22,8 @@ trait Matchers[F[_]] extends MustMatchers {
     if (m.toResult.isSuccess) {
       Monoid[Expectations].empty
     } else {
-      Expectations(Validated.invalidNel(new AssertionException(
-        m.toResult.message,
-        pos)))
+      Expectations(
+        Validated.invalidNel(new AssertionException(m.toResult.message, pos)))
     }
 
   implicit def toExpectationsF[A](
@@ -35,5 +37,5 @@ trait Matchers[F[_]] extends MustMatchers {
 }
 
 trait IOMatchers extends Matchers[IO] {
-  self: EffectSuite[IO] =>
+  self: BareEffectSuite[IO] =>
 }

@@ -10,11 +10,11 @@ import org.scalacheck.rng.Seed
 import org.scalacheck.{ Arbitrary, Gen }
 
 trait IOCheckers extends Checkers[IO] {
-  self: ConcurrentEffectSuite[IO] =>
+  self: BareConcurrentEffectSuite[IO] =>
 }
 
 trait Checkers[F[_]] {
-  self: ConcurrentEffectSuite[F] =>
+  self: BareConcurrentEffectSuite[F] =>
 
   type Prop = F[Expectations]
 

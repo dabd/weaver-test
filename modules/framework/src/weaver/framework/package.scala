@@ -12,20 +12,20 @@ package object framework {
 
   def suiteFromModule(
       qualifiedName: String,
-      loader: ClassLoader): IO[EffectSuite[Any]] =
+      loader: ClassLoader): IO[BareEffectSuite[Any]] =
     castToSuite(loadModule(qualifiedName, loader))
 
   def suiteFromGlobalResourcesSharingClass(
       qualifiedName: String,
       globalResources: GlobalResources,
-      loader: ClassLoader): IO[EffectSuite[Any]] =
+      loader: ClassLoader): IO[BareEffectSuite[Any]] =
     castToSuite(makeInstance(qualifiedName, globalResources, loader))
 
-  private def castToSuite(io: IO[Any]): IO[EffectSuite[Any]] = io.flatMap {
-    case ref: EffectSuite[_] => IO.pure(ref)
+  private def castToSuite(io: IO[Any]): IO[BareEffectSuite[Any]] = io.flatMap {
+    case ref: BareEffectSuite[_] => IO.pure(ref)
     case other =>
       IO.raiseError {
-        new Exception(s"$other is not an effect suite") with NoStackTrace
+        new Exception(s"$other is not an bare effect suite") with NoStackTrace
       }
   }
 

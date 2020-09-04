@@ -44,7 +44,7 @@ object Main
   }
 
   def runSuite(
-      suite: EffectSuite[Any],
+      suite: BareEffectSuite[Any],
       args: List[String],
       printStream: PrintStream): IO[Unit] = for {
     _ <- printEvent(printStream)(SuiteStarts(suite.name))
